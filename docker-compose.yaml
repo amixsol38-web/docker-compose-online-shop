@@ -5,11 +5,8 @@ services:
     image: shop_backend
     build:
       context: ./backend
-    container_name: shop-backend
     restart: unless-stopped
 
-    ports:
-      - "8080:8080"
 
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME}
@@ -32,6 +29,24 @@ services:
     networks:
       - shop-net
 
+  haproxy:
+    image: haproxy:2.9
+    container_name: shop-haproxy
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"   
+      - "8404:8404"
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+
+    depends_on:
+      backend:
+        condition: service_healthy
+
+    networks:
+      - shop-net
+
   frontend:
     image: shop_frontend
     build:
@@ -43,18 +58,18 @@ services:
       - "80:80"
 
     environment:
-      BACKEND_HOST: backend
+      BACKEND_HOST: haproxy
       BACKEND_PORT: 8080
 
     depends_on:
-      backend:
-        condition: service_healthy
+      haproxy:
+        condition: service_started
 
     read_only: true
     tmpfs:
-    - /etc/nginx/conf.d
-    - /var/cache/nginx
-    - /var/run
+      - /etc/nginx/conf.d
+      - /var/cache/nginx
+      - /var/run
 
     networks:
       - shop-net
